@@ -1,6 +1,7 @@
 /* WalletConnect v2 + Trust Wallet. LIVE send is gated OFF by default.
-   Never stores a seed or private key. */
-import { EthereumProvider } from "https://esm.sh/@walletconnect/ethereum-provider@2.21.5?bundle";
+   Never stores a seed or private key.
+   Source module — run `npm run build:wallet` to refresh js/wallet.bundle.js for Pages. */
+import { EthereumProvider } from "@walletconnect/ethereum-provider";
 
 const LS_KEY = "GROK_DESK_WC_PROJECT_ID";
 /* Public WalletConnect / Reown client id for project "666". Safe in frontend.
@@ -181,7 +182,13 @@ async function connectWalletConnect() {
     methods: ["eth_sendTransaction", "personal_sign", "eth_signTypedData", "eth_signTypedData_v4"],
     events: ["chainChanged", "accountsChanged"],
     metadata,
-    qrModalOptions: { themeMode: "dark", themeVariables: { "--wcm-z-index": "2000" } },
+    qrModalOptions: {
+      themeMode: "dark",
+      themeVariables: { "--wcm-z-index": "2000" },
+      explorerRecommendedWalletIds: [
+        "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0",
+      ],
+    },
   });
 
   bindProvider(provider);

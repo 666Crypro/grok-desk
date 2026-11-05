@@ -48,6 +48,17 @@ python3 -m http.server 8765
 
 Open http://127.0.0.1:8765/
 
+## Rebuild the WalletConnect bundle
+
+The live site is static GitHub Pages, so WalletConnect is pre-bundled as `js/wallet.bundle.js` (no esm.sh imports at runtime). After editing `js/wallet.js`:
+
+```bash
+npm install
+npm run build:wallet
+```
+
+That writes `js/wallet.bundle.js`. Commit the bundle so Pages stays in sync.
+
 ## Paper swarm controls
 
 - **PAUSE / RESUME** — freeze the simulated swarm cycle.

@@ -1,0 +1,16 @@
+{
+  "name": "grok-desk",
+  "private": true,
+  "version": "1.0.0",
+  "description": "GROK DESK paper swarm + WalletConnect / Uniswap panel",
+  "type": "module",
+  "scripts": {
+    "build:wallet": "vite build --config vite.wallet.config.js",
+    "preview": "python3 -m http.server 8765"
+  },
+  "dependencies": {
+    "@walletconnect/ethereum-provider": "2.21.5",
+    "@walletconnect/modal": "2.7.0",
+    "vite": "6.0.11"
+  }
+}

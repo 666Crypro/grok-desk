@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GROK DESK — Paper Swarm</title>
+  <title>GROK DESK — Paper Swarm + Uniswap</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -46,12 +47,104 @@
     </div>
 
     <div class="mode-badges">
-      <span class="badge paper" title="All fills are simulated. No real money.">PAPER</span>
-      <span class="badge sim">SIMULATION</span>
+      <span class="badge paper" title="Agent swarm fills are simulated. Paper PnL is not Uniswap PnL.">PAPER SWARM</span>
+      <span class="badge live-off" id="live-mode-badge" title="Real Uniswap sends stay off until you arm LIVE.">LIVE SEND OFF</span>
       <button type="button" class="btn-ghost" id="btn-pause" title="Pause / resume simulation">PAUSE</button>
       <button type="button" class="btn-ghost" id="btn-speed" title="Cycle simulation speed">1×</button>
     </div>
   </header>
+
+
+  <section class="live-dock" id="live-dock">
+    <div class="card">
+      <header class="card-h">
+        <h2>LIVE CONNECT · ETHEREUM · UNISWAP</h2>
+        <span class="pill" id="live-send-pill">QUOTES ONLY</span>
+      </header>
+      <p class="section-split">THIS BLOCK IS SEPARATE FROM THE PAPER AGENT SWARM BELOW</p>
+      <div class="live-grid">
+        <div>
+          <p class="live-help">
+            Connect Trust Wallet with WalletConnect (scan the QR on your phone).
+            Quotes are read-only Uniswap v3 calls. Nothing is broadcast unless
+            <strong>LIVE send</strong> is armed <em>and</em> you press Confirm in this panel
+            <em>and</em> you approve the popup in Trust Wallet.
+            This page never asks for or stores a seed phrase or private key.
+          </p>
+          <div class="live-field">
+            <label for="wc-project-id">WALLETCONNECT PROJECT ID</label>
+            <input id="wc-project-id" type="text" spellcheck="false" autocomplete="off" placeholder="32 hex chars from cloud.reown.com" />
+          </div>
+          <p class="field-hint">
+            Required for the QR modal. Create a free project at
+            <a href="https://cloud.reown.com" target="_blank" rel="noopener">cloud.reown.com</a>
+            (Reown / WalletConnect Cloud), copy the Project ID, paste it here, then Save.
+            Stored only in this browser. There is no built-in ID — a fake one would not connect.
+          </p>
+          <div class="live-row">
+            <button type="button" class="btn-ghost" id="btn-save-pid">Save Project ID</button>
+            <button type="button" class="btn-primary" id="btn-connect">Connect Trust Wallet</button>
+            <button type="button" class="btn-ghost" id="btn-disconnect" disabled>Disconnect</button>
+            <span id="injected-wrap" hidden>
+              <button type="button" class="btn-ghost" id="btn-injected">Use in-browser wallet</button>
+            </span>
+          </div>
+          <div class="addr-line" id="connected-addr">not connected</div>
+          <p class="field-hint" id="addr-note"></p>
+          <div class="live-row">
+            <label class="toggle">
+              <input type="checkbox" id="live-toggle" />
+              Arm LIVE send (default off)
+            </label>
+            <button type="button" class="btn-ghost" id="btn-refresh-bal">Refresh balances</button>
+          </div>
+          <div class="balance-grid">
+            <div class="bal-item"><div class="sym">ETH</div><div class="amt mono" id="bal-ETH">—</div></div>
+            <div class="bal-item"><div class="sym">WETH</div><div class="amt mono" id="bal-WETH">—</div></div>
+            <div class="bal-item"><div class="sym">USDC</div><div class="amt mono" id="bal-USDC">—</div></div>
+            <div class="bal-item"><div class="sym">USDT</div><div class="amt mono" id="bal-USDT">—</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="swap-grid">
+            <div class="swap-field">
+              <label for="token-in">TOKEN IN</label>
+              <select id="token-in">
+                <option value="ETH" selected>ETH</option>
+                <option value="WETH">WETH</option>
+                <option value="USDC">USDC</option>
+                <option value="USDT">USDT</option>
+              </select>
+            </div>
+            <div class="swap-field">
+              <label for="token-out">TOKEN OUT</label>
+              <select id="token-out">
+                <option value="ETH">ETH</option>
+                <option value="WETH">WETH</option>
+                <option value="USDC" selected>USDC</option>
+                <option value="USDT">USDT</option>
+              </select>
+            </div>
+            <div class="swap-field">
+              <label for="amount-in">AMOUNT IN</label>
+              <input id="amount-in" type="text" inputmode="decimal" value="0.01" />
+            </div>
+            <div class="swap-field">
+              <label for="slippage">SLIPPAGE (BPS)</label>
+              <input id="slippage" type="number" min="1" max="500" value="50" />
+            </div>
+          </div>
+          <div class="swap-actions">
+            <button type="button" class="btn-primary" id="btn-quote">Get Uniswap quote</button>
+            <button type="button" class="btn-ghost" id="btn-propose" disabled>Propose swap</button>
+            <button type="button" class="btn-danger" id="btn-confirm" disabled>Confirm in Trust Wallet</button>
+          </div>
+          <div class="swap-quote" id="quote-box">No quote yet. Quotes are free read-only calls and do not move funds.</div>
+          <div class="live-log" id="live-log"></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <main class="grid">
     <!-- LEFT: Agents + Pipeline -->
@@ -110,7 +203,7 @@
 
       <div class="card tape-card">
         <header class="card-h">
-          <h2>THE TAPE</h2>
+          <h2>THE TAPE <span class="paper-tag">· PAPER</span></h2>
           <span class="pill muted" id="tape-market">—</span>
         </header>
         <canvas id="tape-canvas" width="900" height="180"></canvas>
@@ -127,7 +220,7 @@
       <section class="card">
         <header class="card-h">
           <h2>MARKETS</h2>
-          <span class="pill muted">PAPER FEED</span>
+          <span class="pill warn">PAPER FEED</span>
         </header>
         <div class="market-list" id="market-list"></div>
       </section>
@@ -159,13 +252,20 @@
   </main>
 
   <footer class="disclaimer">
-    <strong>PAPER MODE ONLY.</strong>
-    All trades, fills, and PnL are simulated. No wallet keys. No live Polymarket / CLOB orders. Not financial advice.
-    Market titles (if shown) are illustrative. Starting paper bank: $10,000.
+    <strong>Two separate modes.</strong>
+    The agent swarm, tape, markets, and swarm PnL are <strong>PAPER</strong> — simulated, starting bank $10,000.
+    Paper PnL is not Uniswap PnL and cannot be withdrawn.
+    The LIVE CONNECT panel can read Ethereum balances and Uniswap v3 quotes.
+    A real swap costs gas and can lose money; it is sent only if LIVE send is armed, you press Confirm,
+    and you approve the transaction in Trust Wallet. This site never holds your seed or private key.
+    Not financial advice. Not a broker. Ethereum mainnet only.
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.umd.min.js"></script>
   <script src="js/markets.js"></script>
   <script src="js/agents.js"></script>
   <script src="js/desk.js"></script>
+  <script src="js/uniswap.js"></script>
+  <script type="module" src="js/wallet.js"></script>
 </body>
 </html>

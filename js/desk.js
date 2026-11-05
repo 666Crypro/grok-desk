@@ -476,9 +476,9 @@
   drawTape();
   pushSpectrum();
   drawSpectrum();
-  pushCmds([{ tag: "SYS", text: "PAPER desk online · no wallet · no live orders", cls: "" }]);
+  pushCmds([{ tag: "SYS", text: "PAPER desk online · swarm fills are simulated · Uniswap lives in LIVE CONNECT above", cls: "" }]);
   pushPipeLog([{ text: "BOOT → paper swarm armed ($10,000)", cls: "good" }]);
-  $("sphere-ticker").textContent = "paper swarm online — simulation only";
+  $("sphere-ticker").textContent = "paper swarm online — simulation only · not Uniswap";
 
   requestAnimationFrame(tick);
 })();

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GROK DESK — Paper Swarm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/desk.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-mark">◆</div>
+      <div>
+        <div class="brand-title">GROK DESK</div>
+        <div class="brand-sub">MULTI-AGENT COMMAND CENTER</div>
+      </div>
+    </div>
+
+    <div class="top-metrics">
+      <div class="metric">
+        <span class="metric-label">UTC</span>
+        <span class="metric-value mono" id="utc-clock">--:--:--</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">AGENTS</span>
+        <span class="metric-value mono" id="agent-count">0</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">OPEN</span>
+        <span class="metric-value mono" id="open-count">0</span>
+      </div>
+      <div class="metric highlight">
+        <span class="metric-label">SWARM PnL</span>
+        <span class="metric-value mono" id="swarm-pnl">+$0.00</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">BANK</span>
+        <span class="metric-value mono" id="paper-bank">$10,000.00</span>
+      </div>
+    </div>
+
+    <div class="mode-badges">
+      <span class="badge paper" title="All fills are simulated. No real money.">PAPER</span>
+      <span class="badge sim">SIMULATION</span>
+      <button type="button" class="btn-ghost" id="btn-pause" title="Pause / resume simulation">PAUSE</button>
+      <button type="button" class="btn-ghost" id="btn-speed" title="Cycle simulation speed">1×</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- LEFT: Agents + Pipeline -->
+    <aside class="panel col-left">
+      <section class="card">
+        <header class="card-h">
+          <h2>AGENT SWARM</h2>
+          <span class="pill live" id="swarm-status">LIVE</span>
+        </header>
+        <ul class="agent-list" id="agent-list"></ul>
+      </section>
+
+      <section class="card">
+        <header class="card-h">
+          <h2>PIPELINE</h2>
+          <span class="pill muted" id="pipeline-stage">IDLE</span>
+        </header>
+        <div class="pipeline" id="pipeline">
+          <div class="pipe-step" data-step="SCAN"><span>01</span>SCAN</div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step" data-step="VERIFY"><span>02</span>VERIFY</div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step" data-step="EXECUTE"><span>03</span>EXECUTE</div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step" data-step="EXIT"><span>04</span>EXIT</div>
+        </div>
+        <div class="pipe-log mono" id="pipe-log"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-h">
+          <h2>RISK GATES</h2>
+          <span class="pill muted" id="risk-status">ARMED</span>
+        </header>
+        <div class="risk-grid" id="risk-gates"></div>
+      </section>
+    </aside>
+
+    <!-- CENTER: Sphere + Tape -->
+    <section class="col-center">
+      <div class="card sphere-card">
+        <div class="sphere-meta">
+          <div>
+            <div class="tiny">COMMAND NODE</div>
+            <div class="mono big" id="node-label">SWARM://PAPER</div>
+          </div>
+          <div class="sphere-stats">
+            <div><span class="tiny">SPOT</span><div class="mono" id="spot-val">—</div></div>
+            <div><span class="tiny">OPEN</span><div class="mono" id="open-val">—</div></div>
+            <div><span class="tiny">TIME LEFT</span><div class="mono" id="time-left">—</div></div>
+          </div>
+        </div>
+        <canvas id="sphere-canvas" width="640" height="420" aria-label="Wireframe command sphere"></canvas>
+        <div class="sphere-footer mono" id="sphere-ticker">awaiting signal…</div>
+      </div>
+
+      <div class="card tape-card">
+        <header class="card-h">
+          <h2>THE TAPE</h2>
+          <span class="pill muted" id="tape-market">—</span>
+        </header>
+        <canvas id="tape-canvas" width="900" height="180"></canvas>
+        <div class="tape-legend">
+          <span><i class="dot up"></i>YES</span>
+          <span><i class="dot down"></i>NO</span>
+          <span class="mono" id="tape-last">last —</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Markets, Commands, Spectrogram -->
+    <aside class="panel col-right">
+      <section class="card">
+        <header class="card-h">
+          <h2>MARKETS</h2>
+          <span class="pill muted">PAPER FEED</span>
+        </header>
+        <div class="market-list" id="market-list"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-h">
+          <h2>COMMAND STACK</h2>
+          <span class="pill muted" id="cmd-count">0</span>
+        </header>
+        <ul class="cmd-stack mono" id="cmd-stack"></ul>
+      </section>
+
+      <section class="card">
+        <header class="card-h">
+          <h2>SIGNAL SPECTROGRAM</h2>
+          <span class="pill muted">Hz · α</span>
+        </header>
+        <canvas id="spec-canvas" width="420" height="140"></canvas>
+      </section>
+
+      <section class="card">
+        <header class="card-h">
+          <h2>POSITIONS</h2>
+          <span class="pill muted" id="pos-count">0</span>
+        </header>
+        <div class="pos-list" id="pos-list"></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="disclaimer">
+    <strong>PAPER MODE ONLY.</strong>
+    All trades, fills, and PnL are simulated. No wallet keys. No live Polymarket / CLOB orders. Not financial advice.
+    Market titles (if shown) are illustrative. Starting paper bank: $10,000.
+  </footer>
+
+  <script src="js/markets.js"></script>
+  <script src="js/agents.js"></script>
+  <script src="js/desk.js"></script>
+</body>
+</html>

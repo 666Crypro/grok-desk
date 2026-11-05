@@ -73,13 +73,13 @@
           </p>
           <div class="live-field">
             <label for="wc-project-id">WALLETCONNECT PROJECT ID</label>
-            <input id="wc-project-id" type="text" spellcheck="false" autocomplete="off" placeholder="32 hex chars from cloud.reown.com" />
+            <input id="wc-project-id" type="text" spellcheck="false" autocomplete="off" value="f33eb1a75a3ef4cde87fb32bfa93609d" placeholder="32 hex chars from cloud.reown.com" />
           </div>
           <p class="field-hint">
-            Required for the QR modal. Create a free project at
-            <a href="https://cloud.reown.com" target="_blank" rel="noopener">cloud.reown.com</a>
-            (Reown / WalletConnect Cloud), copy the Project ID, paste it here, then Save.
-            Stored only in this browser. There is no built-in ID — a fake one would not connect.
+            Prefills with this desk’s Reown project ID (public client id — safe in the page).
+            Override anytime, then Save (stored in this browser only). Create or manage projects at
+            <a href="https://cloud.reown.com" target="_blank" rel="noopener">cloud.reown.com</a>.
+            In Reown, allowlist origin <code>https://666crypro.github.io</code> if QR connect fails.
           </p>
           <div class="live-row">
             <button type="button" class="btn-ghost" id="btn-save-pid">Save Project ID</button>
@@ -266,6 +266,7 @@
   <script src="js/agents.js"></script>
   <script src="js/desk.js"></script>
   <script src="js/uniswap.js"></script>
+  <script>window.GROK_DESK_WC_PROJECT_ID = "f33eb1a75a3ef4cde87fb32bfa93609d";</script>
   <script type="module" src="js/wallet.js"></script>
 </body>
 </html>

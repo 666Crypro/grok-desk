@@ -3,6 +3,9 @@
 import { EthereumProvider } from "https://esm.sh/@walletconnect/ethereum-provider@2.21.5?bundle";
 
 const LS_KEY = "GROK_DESK_WC_PROJECT_ID";
+/* Public WalletConnect / Reown client id for project "666". Safe in frontend.
+   Override via input, localStorage, ?wcProjectId=, or window.GROK_DESK_WC_PROJECT_ID. */
+const DEFAULT_PROJECT_ID = "f33eb1a75a3ef4cde87fb32bfa93609d";
 const EXPECTED = (window.GrokUni && window.GrokUni.EXPECTED_EOA) ||
   "0x6dfD705E0dE92D743E58b32A7b43d3D2D6Ec40B3";
 
@@ -39,7 +42,7 @@ function readProjectId() {
   const fromCfg = (window.GROK_DESK_WC_PROJECT_ID || "").trim();
   const fromInput = ($("wc-project-id") && $("wc-project-id").value.trim()) || "";
   const fromLs = (localStorage.getItem(LS_KEY) || "").trim();
-  return fromQuery || fromCfg || fromInput || fromLs;
+  return fromQuery || fromCfg || fromInput || fromLs || DEFAULT_PROJECT_ID;
 }
 
 function isLikelyProjectId(id) {
@@ -410,7 +413,9 @@ async function confirmSwap() {
 
 function wire() {
   const pid = readProjectId();
-  if ($("wc-project-id") && pid && !$("wc-project-id").value) $("wc-project-id").value = pid;
+  if ($("wc-project-id") && !$("wc-project-id").value) {
+    $("wc-project-id").value = pid || DEFAULT_PROJECT_ID;
+  }
 
   const injectedWrap = $("injected-wrap");
   if (injectedWrap) {

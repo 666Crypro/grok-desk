@@ -13,17 +13,17 @@ Live site: https://666crypro.github.io/grok-desk/
 
 Paper PnL is not Uniswap PnL. You cannot withdraw paper profits.
 
-## WalletConnect Project ID (required to show the QR)
+## WalletConnect Project ID
 
-There is **no bundled Project ID**. A made-up value would not connect.
+The live desk ships with Reown project **"666"** Project ID prefilled (public client id — fine in frontend). You can still override it.
 
-1. Open [cloud.reown.com](https://cloud.reown.com) (Reown / WalletConnect Cloud).
-2. Create a free project.
-3. Copy the **Project ID** (32 hex characters).
-4. Paste it into **WALLETCONNECT PROJECT ID** on the desk and press **Save Project ID**.
-5. Optional: append `?wcProjectId=YOUR_ID` to the URL (still stored only in your browser after Save).
+1. Open https://666crypro.github.io/grok-desk/ — the Project ID field should already be filled.
+2. Press **Connect Trust Wallet** and scan the WalletConnect QR (Ethereum mainnet).
+3. Optional override: paste another ID and **Save Project ID**, or use `?wcProjectId=YOUR_ID`.
 
-Then press **Connect Trust Wallet** and scan the WalletConnect QR with Trust Wallet (Ethereum mainnet). If you open the desk *inside* Trust Wallet’s in-app browser, **Use in-browser wallet** also appears.
+**Reown allowlist:** In the Reown dashboard for this project, add allowed domain / origin **`https://666crypro.github.io`** (and `http://127.0.0.1:8765` for local). If the QR fails with a domain / origin error, that allowlist is the usual fix.
+
+Manage the project at [cloud.reown.com](https://cloud.reown.com) / [dashboard.reown.com](https://dashboard.reown.com).
 
 The site never asks for a seed phrase or private key and does not store one.
 

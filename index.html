@@ -241,6 +241,32 @@
         <canvas id="spec-canvas" width="420" height="140"></canvas>
       </section>
 
+      <section class="card allin-card">
+        <header class="card-h">
+          <h2>ALL-IN · PAPER ONLY</h2>
+          <span class="pill warn">SIMULATED</span>
+        </header>
+        <p class="allin-help">
+          One click opens a <strong>paper</strong> position sized at the entire paper bank cash.
+          Works while the swarm is paused. Never touches LIVE send, Uniswap, or your wallet.
+        </p>
+        <div class="allin-grid">
+          <div class="swap-field">
+            <label for="allin-market">MARKET</label>
+            <select id="allin-market"></select>
+          </div>
+          <div class="swap-field">
+            <label>SIDE</label>
+            <div class="side-toggle" id="allin-side-toggle">
+              <button type="button" data-side="YES" class="on yes" id="allin-side-yes">YES</button>
+              <button type="button" data-side="NO" id="allin-side-no">NO</button>
+            </div>
+          </div>
+        </div>
+        <div class="allin-meta mono" id="allin-meta">—</div>
+        <button type="button" class="btn-primary" id="btn-allin" title="Simulated paper trade only">ALL-IN (paper)</button>
+      </section>
+
       <section class="card">
         <header class="card-h">
           <h2>POSITIONS</h2>

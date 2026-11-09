@@ -11,6 +11,7 @@
     risk: GrokAgents.createRiskState(),
     bank: { cash: STARTING_BANK, realized: 0 },
     selectedMarketId: null,
+    allInSide: "YES",
     cmds: [],
     pipeLog: [],
     stage: "IDLE",
@@ -18,7 +19,10 @@
     spherePhase: 0,
   };
 
-  state.selectedMarketId = state.markets[0].id;
+  // Default market + side to best current simulated edge (PAPER only).
+  const bootPick = GrokAgents.pickBestEdge(state.markets);
+  state.selectedMarketId = bootPick ? bootPick.market.id : state.markets[0].id;
+  state.allInSide = bootPick ? bootPick.side : "YES";
 
   const $ = (id) => document.getElementById(id);
 
@@ -81,8 +85,11 @@
         renderMarkets();
         drawTape();
         updateSpotMeta();
+        syncAllInControls({ preserveSide: true });
       });
     });
+    refreshAllInMarketSelect();
+    updateAllInMeta();
   }
 
   function escapeHtml(s) {
@@ -174,6 +181,112 @@
       .join("");
   }
 
+  function refreshAllInMarketSelect() {
+    const sel = $("allin-market");
+    if (!sel) return;
+    const prev = sel.value || state.selectedMarketId;
+    sel.innerHTML = state.markets
+      .map((m) => {
+        const e = (GrokAgents.edgeScore(m) * 100).toFixed(1);
+        const label = `${m.id.toUpperCase()} · YES ${(m.yes * 100).toFixed(0)}¢ · edge ${e}% · ${m.title.slice(0, 42)}`;
+        return `<option value="${m.id}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+    if (state.markets.some((m) => m.id === prev)) sel.value = prev;
+    else sel.value = state.selectedMarketId;
+  }
+
+  function setAllInSide(side) {
+    state.allInSide = side === "NO" ? "NO" : "YES";
+    const yesBtn = $("allin-side-yes");
+    const noBtn = $("allin-side-no");
+    if (yesBtn && noBtn) {
+      yesBtn.classList.toggle("on", state.allInSide === "YES");
+      noBtn.classList.toggle("on", state.allInSide === "NO");
+    }
+    updateAllInMeta();
+  }
+
+  function syncAllInControls({ preserveSide } = {}) {
+    const sel = $("allin-market");
+    if (sel) sel.value = state.selectedMarketId;
+    if (!preserveSide) {
+      const m = state.markets.find((x) => x.id === state.selectedMarketId);
+      if (m) setAllInSide(m.yes >= 0.5 ? "YES" : "NO");
+    } else {
+      setAllInSide(state.allInSide);
+    }
+    updateAllInMeta();
+  }
+
+  function updateAllInMeta() {
+    const meta = $("allin-meta");
+    const btn = $("btn-allin");
+    if (!meta) return;
+    const m =
+      state.markets.find((x) => x.id === ($("allin-market") && $("allin-market").value)) ||
+      state.markets.find((x) => x.id === state.selectedMarketId) ||
+      state.markets[0];
+    const side = state.allInSide;
+    const px = side === "YES" ? m.yes : m.no;
+    const cash = state.bank.cash;
+    const best = GrokAgents.pickBestEdge(state.markets);
+    const bestHint = best
+      ? `best edge ${best.market.id.toUpperCase()} ${(best.edge * 100).toFixed(1)}% → ${best.side}`
+      : "";
+    meta.textContent =
+      `PAPER cash ${fmtUsd(cash)} · ${side} @ ${fmtCents(px)} · size ${fmtUsd(Math.max(0, cash))} · ${bestHint}`;
+    if (btn) {
+      btn.disabled = !(cash > 0);
+      btn.textContent = cash > 0 ? "ALL-IN (paper)" : "ALL-IN (paper) · no cash";
+    }
+  }
+
+  function executePaperAllIn() {
+    const marketId = ($("allin-market") && $("allin-market").value) || state.selectedMarketId;
+    const market = state.markets.find((x) => x.id === marketId);
+    const side = state.allInSide;
+    const result = GrokAgents.paperAllIn({
+      market,
+      side,
+      bank: state.bank,
+      positions: state.positions,
+    });
+    if (!result.ok) {
+      pushCmds([{ tag: "SKIP", text: `ALL-IN blocked · ${result.reason}`, cls: "skip" }]);
+      pushPipeLog([{ text: `ALL-IN → ${result.reason}`, cls: "warn" }]);
+      updateAllInMeta();
+      return;
+    }
+    state.selectedMarketId = market.id;
+    state.risk.openCount = state.positions.length;
+    const cents = (result.entry * 100).toFixed(0);
+    pushCmds([
+      {
+        tag: "EXEC",
+        text: `PAPER ALL-IN ${side} $${result.size.toFixed(0)} @ ${cents}¢ · ${market.id}`,
+        cls: "exec",
+      },
+    ]);
+    pushPipeLog([
+      {
+        text: `EXECUTE → PAPER ALL-IN ${side} $${result.size.toFixed(0)} (simulated)`,
+        cls: "good",
+      },
+    ]);
+    renderPipeline("EXECUTE");
+    $("sphere-ticker").textContent =
+      `[PAPER ALL-IN] ${market.title} · ${side} $${result.size.toFixed(0)} · simulated`;
+    $("node-label").textContent = `SWARM://${market.id.toUpperCase()}`;
+    renderMarkets();
+    renderPositions();
+    renderRisk();
+    updateBankUi();
+    updateSpotMeta();
+    drawTape();
+    updateAllInMeta();
+  }
+
   function updateBankUi() {
     const unreal = GrokAgents.markPositions(state.positions, state.markets);
     const equity = state.bank.cash + state.positions.reduce((s, p) => s + p.size, 0) + unreal;
@@ -185,6 +298,7 @@
     el.textContent = fmtUsd(pnl, true);
     el.className = "metric-value mono " + (pnl >= 0 ? "up" : "down");
     $("paper-bank").textContent = fmtUsd(total);
+    updateAllInMeta();
   }
 
   function updateSpotMeta() {
@@ -465,6 +579,19 @@
     $("btn-speed").textContent = state.speed + "×";
   });
 
+  // PAPER-ONLY all-in (works while paused; never touches LIVE/wallet)
+  $("allin-market").addEventListener("change", () => {
+    state.selectedMarketId = $("allin-market").value;
+    const m = state.markets.find((x) => x.id === state.selectedMarketId);
+    if (m) setAllInSide(m.yes >= 0.5 ? "YES" : "NO");
+    renderMarkets();
+    drawTape();
+    updateSpotMeta();
+  });
+  $("allin-side-yes").addEventListener("click", () => setAllInSide("YES"));
+  $("allin-side-no").addEventListener("click", () => setAllInSide("NO"));
+  $("btn-allin").addEventListener("click", () => executePaperAllIn());
+
   // Boot
   renderAgents();
   renderMarkets();
@@ -476,7 +603,10 @@
   drawTape();
   pushSpectrum();
   drawSpectrum();
+  setAllInSide(state.allInSide);
+  syncAllInControls({ preserveSide: true });
   pushCmds([{ tag: "SYS", text: "PAPER desk online · swarm fills are simulated · Uniswap lives in LIVE CONNECT above", cls: "" }]);
+  pushCmds([{ tag: "SYS", text: "ALL-IN (paper) armed · simulated only · never touches LIVE send / wallet", cls: "" }]);
   pushPipeLog([{ text: "BOOT → paper swarm armed ($10,000)", cls: "good" }]);
   $("sphere-ticker").textContent = "paper swarm online — simulation only · not Uniswap";
 

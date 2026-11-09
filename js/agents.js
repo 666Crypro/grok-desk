@@ -52,6 +52,57 @@
     return base * 0.35 + noise;
   }
 
+  /** Deterministic edge used for ALL-IN default market pick. */
+  function edgeScore(market) {
+    return Math.abs(market.yes - 0.5) * 0.35;
+  }
+
+  /** Market with the best current edge + preferred side (YES if yes>=0.5 else NO). */
+  function pickBestEdge(markets) {
+    if (!markets || !markets.length) return null;
+    let best = markets[0];
+    let bestE = edgeScore(best);
+    for (let i = 1; i < markets.length; i++) {
+      const e = edgeScore(markets[i]);
+      if (e > bestE) {
+        best = markets[i];
+        bestE = e;
+      }
+    }
+    const side = best.yes >= 0.5 ? "YES" : "NO";
+    return { market: best, side, edge: bestE };
+  }
+
+  /**
+   * Manual PAPER-ONLY all-in. Sizes at entire bank.cash.
+   * Does not touch LIVE / Uniswap / wallet paths.
+   */
+  function paperAllIn(ctx) {
+    const { market, side, bank, positions } = ctx;
+    const cash = Number(bank.cash);
+    if (!(cash > 0) || !Number.isFinite(cash)) {
+      return { ok: false, reason: "no paper cash" };
+    }
+    if (!market) return { ok: false, reason: "no market" };
+    if (side !== "YES" && side !== "NO") return { ok: false, reason: "bad side" };
+    const entry = side === "YES" ? market.yes : market.no;
+    const trade = {
+      id: "p" + Date.now().toString(36) + Math.floor(Math.random() * 999),
+      marketId: market.id,
+      title: market.title,
+      side,
+      entry,
+      size: cash,
+      openedAt: Date.now(),
+      mark: entry,
+      unrealized: 0,
+      allIn: true,
+    };
+    bank.cash = 0;
+    positions.push(trade);
+    return { ok: true, trade, entry, size: cash };
+  }
+
   /**
    * Run one pipeline cycle. Mutates agents, risk, positions, bank, cmds.
    * Returns { stage trail, commands[], trade? }
@@ -80,6 +131,20 @@
     setAgent("news", "scan", "headline pass");
     cmds.push({ tag: "SCAN", text: `${market.title.slice(0, 48)}…`, cls: "" });
     log.push({ text: `SCAN → ${market.title}`, cls: "" });
+
+    // No cash → swarm cannot open more paper trades
+    if (!(bank.cash > 0)) {
+      stage = "EXIT";
+      setAgent("risk", "risk", "NO PAPER CASH");
+      setAgent("exec", "skip", "idle · $0 cash");
+      agents.forEach((a) => {
+        if (a.state === "scan") a.state = "skip";
+      });
+      cmds.push({ tag: "SKIP", text: "no paper cash — swarm cannot trade", cls: "skip" });
+      log.push({ text: "SKIP → no paper cash", cls: "warn" });
+      setAgent("audit", "skip", "logged");
+      return { stage: "EXIT", cmds, log, trade: null, market, blocked: true };
+    }
 
     // VERIFY
     stage = "VERIFY";
@@ -143,8 +208,8 @@
     }
 
     const entry = side === "YES" ? market.yes : market.no;
-    const notional = Math.min(size, bank.cash * 0.15);
-    if (notional < 50 || bank.cash < notional) {
+    const notional = Math.min(size, Math.max(0, bank.cash) * 0.15, Math.max(0, bank.cash));
+    if (!(bank.cash > 0) || notional < 50 || bank.cash < notional) {
       risk.fired.sizeCap = true;
       cmds.push({ tag: "SKIP", text: "insufficient paper cash", cls: "skip" });
       log.push({ text: "SKIP → insufficient paper cash", cls: "warn" });
@@ -246,5 +311,8 @@
     runCycle,
     markPositions,
     maybeClosePositions,
+    edgeScore,
+    pickBestEdge,
+    paperAllIn,
   };
 })(window);

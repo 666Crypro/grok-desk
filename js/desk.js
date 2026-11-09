@@ -19,9 +19,36 @@
     spherePhase: 0,
   };
 
+  function safeEdgeScore(m) {
+    if (typeof GrokAgents.edgeScore === "function") return GrokAgents.edgeScore(m);
+    return Math.abs(m.yes - 0.5) * 0.35;
+  }
+
+  function safePickBestEdge(markets) {
+    if (typeof GrokAgents.pickBestEdge === "function") {
+      try {
+        const p = GrokAgents.pickBestEdge(markets);
+        if (p && p.market) return p;
+      } catch (_) { /* fall through */ }
+    }
+    if (!markets || !markets.length) return null;
+    let best = markets[0];
+    let bestE = safeEdgeScore(best);
+    for (let i = 1; i < markets.length; i++) {
+      const e = safeEdgeScore(markets[i]);
+      if (e > bestE) {
+        best = markets[i];
+        bestE = e;
+      }
+    }
+    return { market: best, side: best.yes >= 0.5 ? "YES" : "NO", edge: bestE };
+  }
+
   // Default market + side to best current simulated edge (PAPER only).
-  const bootPick = GrokAgents.pickBestEdge(state.markets);
-  state.selectedMarketId = bootPick ? bootPick.market.id : state.markets[0].id;
+  const bootPick = safePickBestEdge(state.markets);
+  state.selectedMarketId = bootPick
+    ? bootPick.market.id
+    : (state.markets[0] && state.markets[0].id) || null;
   state.allInSide = bootPick ? bootPick.side : "YES";
 
   const $ = (id) => document.getElementById(id);
@@ -65,6 +92,12 @@
 
   function renderMarkets() {
     const box = $("market-list");
+    if (!state.markets.length) {
+      box.innerHTML = `<div class="empty">No paper markets</div>`;
+      ensureAllInMarketSelect();
+      updateAllInMeta();
+      return;
+    }
     box.innerHTML = state.markets
       .map((m) => {
         const sel = m.id === state.selectedMarketId ? "selected" : "";
@@ -181,19 +214,68 @@
       .join("");
   }
 
-  function refreshAllInMarketSelect() {
+  /** Resolve which market the ALL-IN control should use. */
+  function resolveAllInMarket() {
+    ensureAllInMarketSelect();
     const sel = $("allin-market");
-    if (!sel) return;
+    const fromSel = sel && sel.value;
+    let m =
+      state.markets.find((x) => x.id === fromSel) ||
+      state.markets.find((x) => x.id === state.selectedMarketId) ||
+      null;
+    if (!m) {
+      const best = safePickBestEdge(state.markets);
+      m = best ? best.market : state.markets[0] || null;
+      if (m) {
+        state.selectedMarketId = m.id;
+        if (sel) sel.value = m.id;
+      }
+    }
+    return m || null;
+  }
+
+  /**
+   * Fill / repair the ALL-IN market dropdown.
+   * Refills when empty, option count drifts, or nothing valid is selected.
+   * Preserves the current selection when still valid.
+   */
+  function ensureAllInMarketSelect() {
+    const sel = $("allin-market");
+    if (!sel) return false;
+    if (!state.markets.length) {
+      sel.innerHTML = "";
+      return false;
+    }
     const prev = sel.value || state.selectedMarketId;
-    sel.innerHTML = state.markets
-      .map((m) => {
-        const e = (GrokAgents.edgeScore(m) * 100).toFixed(1);
-        const label = `${m.id.toUpperCase()} · YES ${(m.yes * 100).toFixed(0)}¢ · edge ${e}% · ${m.title.slice(0, 42)}`;
-        return `<option value="${m.id}">${escapeHtml(label)}</option>`;
-      })
-      .join("");
-    if (state.markets.some((m) => m.id === prev)) sel.value = prev;
-    else sel.value = state.selectedMarketId;
+    const needsFill =
+      sel.options.length === 0 ||
+      sel.options.length !== state.markets.length ||
+      !sel.value ||
+      !state.markets.some((m) => m.id === sel.value);
+
+    if (needsFill) {
+      sel.innerHTML = state.markets
+        .map((m) => {
+          const e = (safeEdgeScore(m) * 100).toFixed(1);
+          const label = `${m.id.toUpperCase()} · YES ${(m.yes * 100).toFixed(0)}¢ · edge ${e}% · ${m.title.slice(0, 42)}`;
+          return `<option value="${m.id}">${escapeHtml(label)}</option>`;
+        })
+        .join("");
+      if (state.markets.some((m) => m.id === prev)) {
+        sel.value = prev;
+        state.selectedMarketId = prev;
+      } else {
+        const best = safePickBestEdge(state.markets);
+        const id = best ? best.market.id : state.markets[0].id;
+        sel.value = id;
+        state.selectedMarketId = id;
+      }
+    }
+    return sel.options.length > 0;
+  }
+
+  function refreshAllInMarketSelect() {
+    ensureAllInMarketSelect();
   }
 
   function setAllInSide(side) {
@@ -208,10 +290,11 @@
   }
 
   function syncAllInControls({ preserveSide } = {}) {
+    ensureAllInMarketSelect();
     const sel = $("allin-market");
-    if (sel) sel.value = state.selectedMarketId;
+    if (sel && state.selectedMarketId) sel.value = state.selectedMarketId;
     if (!preserveSide) {
-      const m = state.markets.find((x) => x.id === state.selectedMarketId);
+      const m = resolveAllInMarket();
       if (m) setAllInSide(m.yes >= 0.5 ? "YES" : "NO");
     } else {
       setAllInSide(state.allInSide);
@@ -223,14 +306,20 @@
     const meta = $("allin-meta");
     const btn = $("btn-allin");
     if (!meta) return;
-    const m =
-      state.markets.find((x) => x.id === ($("allin-market") && $("allin-market").value)) ||
-      state.markets.find((x) => x.id === state.selectedMarketId) ||
-      state.markets[0];
+    ensureAllInMarketSelect();
+    const m = resolveAllInMarket();
+    if (!m) {
+      meta.textContent = "No paper markets loaded — cannot ALL-IN";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "ALL-IN (paper) · no market";
+      }
+      return;
+    }
     const side = state.allInSide;
     const px = side === "YES" ? m.yes : m.no;
     const cash = state.bank.cash;
-    const best = GrokAgents.pickBestEdge(state.markets);
+    const best = safePickBestEdge(state.markets);
     const bestHint = best
       ? `best edge ${best.market.id.toUpperCase()} ${(best.edge * 100).toFixed(1)}% → ${best.side}`
       : "";
@@ -243,9 +332,21 @@
   }
 
   function executePaperAllIn() {
-    const marketId = ($("allin-market") && $("allin-market").value) || state.selectedMarketId;
-    const market = state.markets.find((x) => x.id === marketId);
+    ensureAllInMarketSelect();
+    const market = resolveAllInMarket();
     const side = state.allInSide;
+    if (!market) {
+      pushCmds([{ tag: "SKIP", text: "ALL-IN blocked · no market available", cls: "skip" }]);
+      pushPipeLog([{ text: "ALL-IN → no market available", cls: "warn" }]);
+      updateAllInMeta();
+      return;
+    }
+    if (typeof GrokAgents.paperAllIn !== "function") {
+      pushCmds([{ tag: "SKIP", text: "ALL-IN blocked · paperAllIn missing (stale JS cache?)", cls: "skip" }]);
+      pushPipeLog([{ text: "ALL-IN → paperAllIn missing — hard-refresh the page", cls: "warn" }]);
+      updateAllInMeta();
+      return;
+    }
     const result = GrokAgents.paperAllIn({
       market,
       side,
@@ -303,6 +404,14 @@
 
   function updateSpotMeta() {
     const m = state.markets.find((x) => x.id === state.selectedMarketId) || state.markets[0];
+    if (!m) {
+      $("spot-val").textContent = "—";
+      $("open-val").textContent = "0";
+      $("time-left").textContent = "—";
+      $("tape-market").textContent = "—";
+      $("tape-last").textContent = "last —";
+      return;
+    }
     $("spot-val").textContent = fmtCents(m.yes);
     $("open-val").textContent = String(state.positions.filter((p) => p.marketId === m.id).length);
     const ms = Math.max(0, m.endsAt - Date.now());
@@ -433,6 +542,7 @@
     ctx.clearRect(0, 0, w, h);
 
     const m = state.markets.find((x) => x.id === state.selectedMarketId) || state.markets[0];
+    if (!m || !m.history || !m.history.length) return;
     const bars = m.history;
     const pad = 16;
     const bw = (w - pad * 2) / bars.length;
@@ -511,21 +621,43 @@
     updateClock();
     drawSphere();
 
-    if (!state.paused) {
-      marketAcc += dt * state.speed;
-      cycleAcc += dt * state.speed;
-
-      if (marketAcc > 1200) {
-        marketAcc = 0;
-        GrokMarkets.tickMarkets(state.markets);
-        drawTape();
-        updateSpotMeta();
-        updateBankUi();
-        renderPositions();
-        renderMarkets();
+    // Keep ALL-IN dropdown healthy even while paused / after cache races.
+    if (!tick._allInRepair || tick._allInRepair-- <= 0) {
+      tick._allInRepair = 30; // every ~30 frames
+      const sel = $("allin-market");
+      if (sel && (sel.options.length === 0 || !sel.value)) {
+        ensureAllInMarketSelect();
+        updateAllInMeta();
       }
+    }
 
-      if (cycleAcc > 2800) {
+    if (state.paused) {
+      // Accumulators stay cleared while paused so nothing "pending" fires.
+      marketAcc = 0;
+      cycleAcc = 0;
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    marketAcc += dt * state.speed;
+    cycleAcc += dt * state.speed;
+
+    if (marketAcc > 1200) {
+      marketAcc = 0;
+      GrokMarkets.tickMarkets(state.markets);
+      drawTape();
+      updateSpotMeta();
+      updateBankUi();
+      renderPositions();
+      renderMarkets();
+    }
+
+    if (cycleAcc > 2800) {
+      // Re-check pause immediately before any trade (stop has no pending fire).
+      if (state.paused) {
+        cycleAcc = 0;
+        marketAcc = 0;
+      } else {
         cycleAcc = 0;
         const result = GrokAgents.runCycle({
           agents: state.agents,
@@ -534,6 +666,8 @@
           risk: state.risk,
           bank: state.bank,
         });
+        // If user paused during runCycle (sync today, but keep guard), drop UI trade fanfare only —
+        // runCycle already mutated; pause still clears future cycles.
         if (result.market) {
           state.selectedMarketId = result.market.id;
           $("sphere-ticker").textContent =
@@ -550,18 +684,20 @@
         updateBankUi();
         updateSpotMeta();
         drawTape();
-        $("swarm-status").textContent = state.risk.dayPnl <= state.risk.dailyLossHalt ? "HALTED" : "LIVE";
-        if (state.risk.dayPnl <= state.risk.dailyLossHalt) {
-          $("swarm-status").className = "pill halt";
-        } else {
-          $("swarm-status").className = "pill live";
+        if (!state.paused) {
+          $("swarm-status").textContent = state.risk.dayPnl <= state.risk.dailyLossHalt ? "HALTED" : "LIVE";
+          if (state.risk.dayPnl <= state.risk.dailyLossHalt) {
+            $("swarm-status").className = "pill halt";
+          } else {
+            $("swarm-status").className = "pill live";
+          }
         }
       }
+    }
 
-      if (Math.random() < 0.2 * state.speed) {
-        pushSpectrum();
-        drawSpectrum();
-      }
+    if (Math.random() < 0.2 * state.speed) {
+      pushSpectrum();
+      drawSpectrum();
     }
 
     requestAnimationFrame(tick);
@@ -570,8 +706,23 @@
   // Controls
   $("btn-pause").addEventListener("click", () => {
     state.paused = !state.paused;
-    $("btn-pause").textContent = state.paused ? "RESUME" : "PAUSE";
-    $("swarm-status").textContent = state.paused ? "PAUSED" : "LIVE";
+    if (state.paused) {
+      // Stop immediately: drop any accumulated cycle/market time so no trade fires after pause.
+      cycleAcc = 0;
+      marketAcc = 0;
+      $("btn-pause").textContent = "RESUME";
+      $("swarm-status").textContent = "PAUSED";
+      $("swarm-status").className = "pill muted";
+      pushCmds([{ tag: "SYS", text: "SWARM PAUSED · pending cycle cleared · no paper trade will fire", cls: "" }]);
+    } else {
+      cycleAcc = 0;
+      marketAcc = 0;
+      lastTs = performance.now();
+      $("btn-pause").textContent = "PAUSE";
+      $("swarm-status").textContent = "LIVE";
+      $("swarm-status").className = "pill live";
+      pushCmds([{ tag: "SYS", text: "SWARM RESUMED · timers reset", cls: "" }]);
+    }
   });
 
   $("btn-speed").addEventListener("click", () => {
